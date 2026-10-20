@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-20
+
 ### Added
 
 - A Caddy device: reachable, configuration loaded, sites, upstreams down,
@@ -27,3 +29,6 @@ the notes of the version's GitHub Release.
 - Basic auth for a read-only site in front of the admin API, and a "Test the
   connection" action.
 - Texts and documentation in English, French, German and Spanish.
+
+[Unreleased]: https://github.com/guim31/gladys-caddy/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-caddy/releases/tag/v1.0.0
