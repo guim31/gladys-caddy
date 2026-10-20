@@ -1,0 +1,5 @@
+[
+  { "address": "dead:80", "num_requests": 0, "fails": 0 },
+  { "address": "whoami1:80", "num_requests": 0, "fails": 0 },
+  { "address": "whoami2:80", "num_requests": 0, "fails": 0 }
+]

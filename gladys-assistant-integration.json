@@ -1,177 +1,697 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Caddy",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Your Caddy web server in Gladys: sites, upstreams down, certificates, alerts in scenes.",
+    "fr": "Votre serveur web Caddy dans Gladys : sites, amonts en panne, certificats, alertes en scène.",
+    "de": "Dein Caddy-Webserver in Gladys: Sites, ausgefallene Upstreams, Zertifikate, Alarme in Szenen.",
+    "es": "Su servidor web Caddy en Gladys: sitios, upstreams caídos, certificados, alertas en escenas."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-caddy:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-caddy/main/cover.png",
+  "categories": ["network"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your Caddy admin API",
+        "fr": "Votre API d'administration Caddy",
+        "de": "Deine Admin-API von Caddy",
+        "es": "Su API de administración de Caddy"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Caddy serves its admin API on localhost:2019 only. Make it reachable from Gladys, ideally through a read-only site: the setup guide shows how. Then add the sites to follow from the Discover tab.",
+        "fr": "Caddy ne sert son API d'administration que sur localhost:2019. Rendez-la joignable par Gladys, idéalement via un site en lecture seule : le guide montre comment. Ajoutez ensuite les sites depuis l'onglet Découverte.",
+        "de": "Caddy stellt seine Admin-API nur auf localhost:2019 bereit. Mach sie für Gladys erreichbar, am besten über eine schreibgeschützte Site: Die Anleitung zeigt wie. Lege dann die Sites im Tab „Entdecken“ an.",
+        "es": "Caddy solo sirve su API de administración en localhost:2019. Hágala accesible para Gladys, idealmente mediante un sitio de solo lectura: la guía explica cómo. Después añada los sitios desde Descubrir."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/guim31/gladys-caddy/blob/main/docs/en.md",
+          "label": {
+            "en": "Setup guide",
+            "fr": "Guide d'installation",
+            "de": "Einrichtungsanleitung",
+            "es": "Guía de instalación"
+          }
+        },
+        {
+          "url": "https://caddyserver.com/docs/api",
+          "label": {
+            "en": "Caddy admin API",
+            "fr": "API d'administration de Caddy",
+            "de": "Admin-API von Caddy",
+            "es": "API de administración de Caddy"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "url",
+      "type": "string",
+      "label": {
+        "en": "Admin API address",
+        "fr": "Adresse de l'API d'administration",
+        "de": "Adresse der Admin-API",
+        "es": "Dirección de la API de administración"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The admin API (port 2019) or the read-only site in front of it.",
+        "fr": "L'API d'administration (port 2019) ou le site en lecture seule placé devant.",
+        "de": "Die Admin-API (Port 2019) oder die schreibgeschützte Site davor.",
+        "es": "La API de administración (puerto 2019) o el sitio de solo lectura delante."
+      },
+      "placeholder": {
+        "en": "e.g. http://192.168.1.2:2019",
+        "fr": "ex. http://192.168.1.2:2019",
+        "de": "z. B. http://192.168.1.2:2019",
+        "es": "p. ej. http://192.168.1.2:2019"
+      },
+      "required": false
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "username",
+      "type": "string",
+      "label": {
+        "en": "User (basic auth)",
+        "fr": "Utilisateur (basic auth)",
+        "de": "Benutzer (Basic Auth)",
+        "es": "Usuario (basic auth)"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Only when the read-only site asks for a basic auth. Leave empty otherwise.",
+        "fr": "Seulement si le site en lecture seule demande une basic auth. Sinon, laissez vide.",
+        "de": "Nur wenn die schreibgeschützte Site Basic Auth verlangt. Sonst leer lassen.",
+        "es": "Solo si el sitio de solo lectura pide basic auth. Si no, déjelo vacío."
+      },
+      "required": false
     },
     {
-      "key": "unit",
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password (basic auth)",
+        "fr": "Mot de passe (basic auth)",
+        "de": "Passwort (Basic Auth)",
+        "es": "Contraseña (basic auth)"
+      },
+      "required": false
+    },
+    {
+      "key": "certificate_host",
+      "type": "string",
+      "label": {
+        "en": "Certificate host",
+        "fr": "Hôte des certificats",
+        "de": "Host der Zertifikate",
+        "es": "Host de los certificados"
+      },
+      "description": {
+        "en": "Where the certificates are read (port 443, one handshake per site). Empty: the host of the API address.",
+        "fr": "Où lire les certificats (port 443, une connexion TLS par site). Vide : l'hôte de l'adresse de l'API.",
+        "de": "Wo die Zertifikate gelesen werden (Port 443, ein TLS-Handshake pro Site). Leer: der Host der API-Adresse.",
+        "es": "Dónde se leen los certificados (puerto 443, una conexión TLS por sitio). Vacío: el host de la dirección de la API."
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.2",
+        "fr": "ex. 192.168.1.2",
+        "de": "z. B. 192.168.1.2",
+        "es": "p. ej. 192.168.1.2"
+      },
+      "required": false
+    },
+    {
+      "key": "options",
+      "type": "section",
+      "label": {
+        "en": "Options",
+        "fr": "Options",
+        "de": "Optionen",
+        "es": "Opciones"
+      }
+    },
+    {
+      "key": "poll_interval",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "label": {
+        "en": "Refresh interval",
+        "fr": "Intervalle de rafraîchissement",
+        "de": "Aktualisierungsintervall",
+        "es": "Intervalo de actualización"
+      },
+      "description": {
+        "en": "How often the admin API is read: three light requests each time. Certificates: once an hour.",
+        "fr": "À quelle fréquence l'API d'administration est lue : trois requêtes légères. Certificats : une fois par heure.",
+        "de": "Wie oft die Admin-API gelesen wird: jedes Mal drei leichte Anfragen. Zertifikate: einmal pro Stunde.",
+        "es": "Con qué frecuencia se lee la API de administración: tres peticiones ligeras. Certificados: una vez por hora."
+      },
       "required": false,
-      "default": "celsius",
+      "default": "60",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "30",
+          "label": {
+            "en": "30 seconds",
+            "fr": "30 secondes",
+            "de": "30 Sekunden",
+            "es": "30 segundos"
+          }
+        },
+        {
+          "value": "60",
+          "label": {
+            "en": "1 minute",
+            "fr": "1 minute",
+            "de": "1 Minute",
+            "es": "1 minuto"
+          }
+        },
+        {
+          "value": "120",
+          "label": {
+            "en": "2 minutes",
+            "fr": "2 minutes",
+            "de": "2 Minuten",
+            "es": "2 minutos"
+          }
+        },
+        {
+          "value": "300",
+          "label": {
+            "en": "5 minutes",
+            "fr": "5 minutes",
+            "de": "5 Minuten",
+            "es": "5 minutos"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
+      "key": "expiry_days",
       "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": {
+        "en": "Certificate alert (days)",
+        "fr": "Alerte certificat (jours)",
+        "de": "Zertifikatswarnung (Tage)",
+        "es": "Alerta de certificado (días)"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "A certificate is announced when it has fewer days left and Caddy is late renewing it.",
+        "fr": "Un certificat est signalé quand il lui reste moins de jours et que Caddy tarde à le renouveler.",
+        "de": "Ein Zertifikat wird gemeldet, wenn ihm weniger Tage bleiben und Caddy es nicht rechtzeitig erneuert.",
+        "es": "Se avisa de un certificado cuando le quedan menos días y Caddy tarda en renovarlo."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": 14,
+      "min": 1,
+      "max": 60
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the names",
+        "fr": "Langue des noms",
+        "de": "Sprache der Namen",
+        "es": "Idioma de los nombres"
+      },
+      "description": {
+        "en": "Language of the feature names (set when a device is added) and of the scene results.",
+        "fr": "Langue des noms des fonctionnalités (fixés à l'ajout d'un appareil) et des résultats de scène.",
+        "de": "Sprache der Funktionsnamen (beim Anlegen eines Geräts festgelegt) und der Szenen-Ergebnisse.",
+        "es": "Idioma de los nombres de las funciones (fijados al añadir un dispositivo) y de los resultados de escena."
+      },
+      "required": false,
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
+      "timeout_seconds": 60
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "upstream_down",
+      "label": {
+        "en": "An upstream goes down",
+        "fr": "Un amont tombe en panne",
+        "de": "Ein Upstream fällt aus",
+        "es": "Un upstream cae"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "An upstream of a reverse_proxy fails its health checks (confirmed on two reads in a row).",
+        "fr": "Un amont d'un reverse_proxy échoue à ses health checks (confirmé sur deux lectures de suite).",
+        "de": "Ein Upstream eines reverse_proxy besteht seine Health Checks nicht (bestätigt in zwei Abfragen in Folge).",
+        "es": "Un upstream de un reverse_proxy falla sus health checks (confirmado en dos lecturas seguidas)."
+      },
+      "variables": [
+        {
+          "key": "upstream",
+          "type": "string",
+          "label": {
+            "en": "Upstream address",
+            "fr": "Adresse de l'amont",
+            "de": "Adresse des Upstreams",
+            "es": "Dirección del upstream"
+          }
+        },
+        {
+          "key": "sites",
+          "type": "string",
+          "label": {
+            "en": "Sites served",
+            "fr": "Sites servis",
+            "de": "Bediente Sites",
+            "es": "Sitios servidos"
+          }
+        },
+        {
+          "key": "fails",
+          "type": "number",
+          "label": {
+            "en": "Recent failures",
+            "fr": "Échecs récents",
+            "de": "Letzte Fehlschläge",
+            "es": "Fallos recientes"
+          }
+        }
+      ]
+    },
+    {
+      "key": "upstream_up",
+      "label": {
+        "en": "An upstream is back up",
+        "fr": "Un amont est rétabli",
+        "de": "Ein Upstream läuft wieder",
+        "es": "Un upstream se restablece"
+      },
+      "description": {
+        "en": "An upstream that was down passes its health checks again, with the length of the outage.",
+        "fr": "Un amont en panne réussit de nouveau ses health checks, avec la durée de la panne.",
+        "de": "Ein ausgefallener Upstream besteht seine Health Checks wieder, mit der Dauer des Ausfalls.",
+        "es": "Un upstream caído vuelve a pasar sus health checks, con la duración de la caída."
+      },
+      "variables": [
+        {
+          "key": "upstream",
+          "type": "string",
+          "label": {
+            "en": "Upstream address",
+            "fr": "Adresse de l'amont",
+            "de": "Adresse des Upstreams",
+            "es": "Dirección del upstream"
+          }
+        },
+        {
+          "key": "sites",
+          "type": "string",
+          "label": {
+            "en": "Sites served",
+            "fr": "Sites servis",
+            "de": "Bediente Sites",
+            "es": "Sitios servidos"
+          }
+        },
+        {
+          "key": "downtime_minutes",
+          "type": "number",
+          "label": {
+            "en": "Outage length (minutes)",
+            "fr": "Durée de la panne (minutes)",
+            "de": "Dauer des Ausfalls (Minuten)",
+            "es": "Duración de la caída (minutos)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "certificate_expiring",
+      "label": {
+        "en": "A certificate expires soon",
+        "fr": "Un certificat expire bientôt",
+        "de": "Ein Zertifikat läuft bald ab",
+        "es": "Un certificado caduca pronto"
+      },
+      "description": {
+        "en": "The certificate of a site has fewer days left than set in the configuration and Caddy has not renewed it in time. Once per certificate.",
+        "fr": "Le certificat d'un site a moins de jours devant lui que réglé dans la configuration et Caddy ne l'a pas renouvelé à temps. Une fois par certificat.",
+        "de": "Das Zertifikat einer Site hat weniger Tage übrig als in der Konfiguration eingestellt, und Caddy hat es nicht rechtzeitig erneuert. Einmal pro Zertifikat.",
+        "es": "Al certificado de un sitio le quedan menos días de los configurados y Caddy no lo ha renovado a tiempo. Una vez por certificado."
       },
       "fields": [
         {
           "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
           "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
+          "label": {
+            "en": "Sites (empty: any)",
+            "fr": "Sites (vide : tous)",
+            "de": "Sites (leer: alle)",
+            "es": "Sitios (vacío: todos)"
+          },
+          "source": "devices"
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "site",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Site",
+            "fr": "Site",
+            "de": "Site",
+            "es": "Sitio"
+          }
+        },
+        {
+          "key": "days_left",
+          "type": "number",
+          "label": {
+            "en": "Days left",
+            "fr": "Jours restants",
+            "de": "Verbleibende Tage",
+            "es": "Días restantes"
+          }
+        },
+        {
+          "key": "expires_at",
+          "type": "string",
+          "label": {
+            "en": "Expiry date",
+            "fr": "Date d'expiration",
+            "de": "Ablaufdatum",
+            "es": "Fecha de caducidad"
+          }
+        },
+        {
+          "key": "issuer",
+          "type": "string",
+          "label": {
+            "en": "Issuer",
+            "fr": "Émetteur",
+            "de": "Aussteller",
+            "es": "Emisor"
+          }
+        }
+      ]
+    },
+    {
+      "key": "caddy_unreachable",
+      "label": {
+        "en": "Caddy is unreachable",
+        "fr": "Caddy est injoignable",
+        "de": "Caddy ist nicht erreichbar",
+        "es": "Caddy no es accesible"
+      },
+      "description": {
+        "en": "The admin API of Caddy no longer answers, two reads in a row: Caddy is down, or the machine.",
+        "fr": "L'API d'administration de Caddy ne répond plus, deux lectures de suite : Caddy est arrêté, ou la machine.",
+        "de": "Die Admin-API von Caddy antwortet nicht mehr, zwei Abfragen in Folge: Caddy ist aus, oder der Rechner.",
+        "es": "La API de administración de Caddy ya no responde, dos lecturas seguidas: Caddy está detenido, o la máquina."
+      },
+      "variables": [
+        {
+          "key": "error",
+          "type": "string",
+          "label": {
+            "en": "Reason",
+            "fr": "Raison",
+            "de": "Grund",
+            "es": "Motivo"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "get_site_status",
+      "label": {
+        "en": "State of a site",
+        "fr": "État d'un site",
+        "de": "Zustand einer Site",
+        "es": "Estado de un sitio"
       },
-      "timeout_seconds": 15,
+      "description": {
+        "en": "Reads the state of a site for the next actions: healthy upstreams, days left on its certificate, and a ready-made sentence.",
+        "fr": "Lit l'état d'un site pour les actions suivantes : amonts sains, jours restants du certificat, et une phrase toute prête.",
+        "de": "Liest den Zustand einer Site für die nächsten Aktionen: funktionierende Upstreams, Resttage des Zertifikats und einen fertigen Satz.",
+        "es": "Lee el estado de un sitio para las siguientes acciones: upstreams en buen estado, días restantes del certificado y una frase lista."
+      },
+      "timeout_seconds": 30,
       "fields": [
         {
           "key": "device",
           "type": "select",
+          "label": {
+            "en": "Site",
+            "fr": "Site",
+            "de": "Site",
+            "es": "Sitio"
+          },
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
           "required": true
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
+          "key": "healthy",
           "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "label": {
+            "en": "Healthy",
+            "fr": "En bonne santé",
+            "de": "Funktionsfähig",
+            "es": "En buen estado"
+          }
+        },
+        {
+          "key": "state",
+          "type": "string",
+          "label": {
+            "en": "State",
+            "fr": "État",
+            "de": "Zustand",
+            "es": "Estado"
+          }
+        },
+        {
+          "key": "upstreams_healthy",
+          "type": "number",
+          "label": {
+            "en": "Healthy upstreams",
+            "fr": "Amonts sains",
+            "de": "Funktionierende Upstreams",
+            "es": "Upstreams en buen estado"
+          }
+        },
+        {
+          "key": "upstreams_total",
+          "type": "number",
+          "label": {
+            "en": "Upstreams in total",
+            "fr": "Amonts au total",
+            "de": "Upstreams insgesamt",
+            "es": "Upstreams en total"
+          }
+        },
+        {
+          "key": "certificate_days",
+          "type": "number",
+          "label": {
+            "en": "Certificate days left",
+            "fr": "Jours restants du certificat",
+            "de": "Resttage des Zertifikats",
+            "es": "Días restantes del certificado"
+          }
+        },
+        {
+          "key": "sentence",
+          "type": "string",
+          "label": {
+            "en": "Sentence",
+            "fr": "Phrase",
+            "de": "Satz",
+            "es": "Frase"
+          }
+        }
+      ]
+    },
+    {
+      "key": "get_caddy_status",
+      "label": {
+        "en": "State of Caddy",
+        "fr": "État de Caddy",
+        "de": "Zustand von Caddy",
+        "es": "Estado de Caddy"
+      },
+      "description": {
+        "en": "Sums up the server for a message: reachable or not, upstreams down and certificates expiring, with their names.",
+        "fr": "Résume le serveur pour un message : joignable ou non, amonts en panne et certificats à renouveler, avec leurs noms.",
+        "de": "Fasst den Server für eine Nachricht zusammen: erreichbar oder nicht, ausgefallene Upstreams und ablaufende Zertifikate, mit Namen.",
+        "es": "Resume el servidor para un mensaje: accesible o no, upstreams caídos y certificados por renovar, con sus nombres."
+      },
+      "timeout_seconds": 30,
+      "outputs": [
+        {
+          "key": "reachable",
+          "type": "boolean",
+          "label": {
+            "en": "Reachable",
+            "fr": "Joignable",
+            "de": "Erreichbar",
+            "es": "Accesible"
+          }
+        },
+        {
+          "key": "sites",
+          "type": "number",
+          "label": {
+            "en": "Sites",
+            "fr": "Sites",
+            "de": "Sites",
+            "es": "Sitios"
+          }
+        },
+        {
+          "key": "upstreams_down",
+          "type": "number",
+          "label": {
+            "en": "Upstreams down",
+            "fr": "Amonts en panne",
+            "de": "Ausgefallene Upstreams",
+            "es": "Upstreams caídos"
+          }
+        },
+        {
+          "key": "upstreams",
+          "type": "string",
+          "label": {
+            "en": "Upstreams down (addresses)",
+            "fr": "Amonts en panne (adresses)",
+            "de": "Ausgefallene Upstreams (Adressen)",
+            "es": "Upstreams caídos (direcciones)"
+          }
+        },
+        {
+          "key": "certificates_expiring",
+          "type": "number",
+          "label": {
+            "en": "Certificates expiring",
+            "fr": "Certificats à renouveler",
+            "de": "Ablaufende Zertifikate",
+            "es": "Certificados por renovar"
+          }
+        },
+        {
+          "key": "certificates",
+          "type": "string",
+          "label": {
+            "en": "Sites with a certificate expiring",
+            "fr": "Sites au certificat à renouveler",
+            "de": "Sites mit ablaufendem Zertifikat",
+            "es": "Sitios con certificado por renovar"
+          }
+        },
+        {
+          "key": "sentence",
+          "type": "string",
+          "label": {
+            "en": "Sentence",
+            "fr": "Phrase",
+            "de": "Satz",
+            "es": "Frase"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "caddy",
+      "label": {
+        "en": "Caddy",
+        "fr": "Caddy",
+        "de": "Caddy",
+        "es": "Caddy"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "Sites down first, then degraded and certificates expiring, then the others.",
+        "fr": "Les sites en panne d'abord, puis dégradés et certificats à renouveler, puis les autres.",
+        "de": "Erst ausgefallene Sites, dann eingeschränkte und ablaufende Zertifikate, dann die anderen.",
+        "es": "Primero los sitios caídos, luego los degradados y certificados por renovar, y los demás."
+      },
+      "icon": "server",
+      "action_timeout_seconds": 60,
+      "settings": [
+        {
+          "key": "sites",
+          "type": "multi_select",
+          "label": {
+            "en": "Sites (empty: all)",
+            "fr": "Sites (vide : tous)",
+            "de": "Sites (leer: alle)",
+            "es": "Sitios (vacío: todos)"
+          },
+          "source": "devices",
+          "description": {
+            "en": "Empty: every site. Only the devices added to Gladys can be chosen.",
+            "fr": "Vide : tous les sites. Seuls les appareils ajoutés à Gladys peuvent être choisis.",
+            "de": "Leer: alle Sites. Nur die in Gladys angelegten Geräte sind wählbar.",
+            "es": "Vacío: todos los sitios. Solo se pueden elegir los dispositivos añadidos a Gladys."
+          },
+          "required": false
+        }
+      ]
     }
   ]
 }

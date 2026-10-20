@@ -31,16 +31,21 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+index.js                          SDK wiring only: src/app.js registers the handlers before connect()
+src/app.js                        every SDK handler -> the hub (also used by the tests)
+src/hub.js                        reading timer, certificates, states, transitions -> scene events, views
+src/devices.js                    the Caddy device + one device per site: features, names, values, states
+src/caddy/client.js               admin API (node:http, GET only): /config/ walk, upstreams, metrics
+src/caddy/certificates.js         TLS handshake per site (expiry date), "expiring" rule
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+src/widgets.js                    dashboard widget `caddy` (manifest `widgets`)
+src/texts.js                      connection, error, state, report and action texts (4 languages)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
+src/store.js, src/problems.js     /data/caddy-state.json; one log line per repeated failure
 gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (en and fr mandatory)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+                                  and helpers/fakeCaddy.js (built on test/fixtures/caddy)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +75,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German and Spanish: action
+  messages, widget texts, feature names, manifest texts, and
+  `docs/{en,fr,de,es}.md` with the same sections (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +239,40 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Caddy (propre à ce dépôt)
+
+Vérifié le 20/10/2026 sur `caddy:2` (v2.11.7) en Docker : Caddyfile avec `admin 0.0.0.0:2019`,
+`local_certs`, deux hôtes sur deux `traefik/whoami` derrière un health check actif, un hôte sur un
+amont arrêté, un site `http://`, un site joker ; puis l'API derrière un site en lecture seule `:2020`
+avec `basic_auth`.
+
+- **`fetch` est inutilisable contre l'API d'administration** : undici envoie toujours
+  `Sec-Fetch-Mode`, et Caddy applique alors son contrôle d'origine (403 « client is not allowed to
+  access from origin '' »), même quand `wget` passe. Le client utilise `node:http`/`node:https`.
+- **Site en lecture seule** (recette de la doc, vérifiée) : `reverse_proxy localhost:2019` exige
+  `header_up Host localhost:2019` **et** `header_up Origin http://localhost:2019`, sinon même 403.
+  `POST`, `DELETE` et les autres chemins prennent le `respond 403`. Ce site apparaît lui-même comme
+  un site `:2020` (amont `localhost:2019`).
+- **Pas de version** : ni `/config/`, ni `/metrics` (`go_build_info` dit `(devel)`), ni un en-tête
+  ne la donnent. Le brief demandait une fonctionnalité « version » : remplacée par « Configuration
+  chargée » (`caddy_config_last_reload_successful`).
+- **Santé des amonts** : `/reverse_proxy/upstreams` ne donne que `address`, `num_requests`, `fails`
+  (échecs passifs, à 0 sans `fail_duration`). La santé active se lit dans `/metrics` :
+  `caddy_reverse_proxy_upstreams_healthy{upstream="dead:80"} 0`, présent sans l'option globale
+  `metrics`. Sans health check, tout amont reste à 1. Repli sans métriques : `fails === 0`.
+- `/config/` vaut `null` sur un Caddy sans configuration. La configuration issue d'un Caddyfile met
+  chaque bloc de site dans une route à `match: [{host: [...]}]` qui enveloppe une `subroute` ; le
+  `reverse_proxy` porte `upstreams: [{dial: "whoami1:80"}]`, et `dial` est exactement l'`address` des
+  amonts et le label `upstream` des métriques. Un serveur `:443` reçoit les sites HTTPS, `:80` les
+  sites `http://`, sans `tls_connection_policies` dans la configuration lue.
+- **Certificats** : poignée de main TLS sur l'hôte de l'API (ou « Hôte des certificats »), port du
+  serveur (443), SNI = le nom, sans vérification. Un nom inconnu reçoit
+  `ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR`. Les certificats `tls internal` durent **12 h** : la règle
+  « expire bientôt » exige aussi moins d'un cinquième de la durée de vie restante (Caddy renouvelle
+  au tiers), sinon ils alerteraient en permanence. Les sites jokers ne sont pas sondés (un nom de
+  sonde pourrait déclencher une émission `on_demand`).
+- Un Caddy redémarré compte tous les amonts sains jusqu'au premier contrôle : un changement de santé
+  ou de présence n'est retenu qu'à **deux lectures de suite** (`CONFIRM_READS`).
+- `admin 0.0.0.0:2019` accepte un `Host` quelconque (pas d'`origins` par défaut) tant que la
+  requête n'a pas d'en-tête `Sec-Fetch-*`/`Origin`.
