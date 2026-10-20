@@ -1,0 +1,86 @@
+{
+  "admin": { "listen": "0.0.0.0:2019" },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [":443"],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "health_checks": { "active": { "interval": 5000000000, "uri": "/" } },
+                          "upstreams": [{ "dial": "dead:80" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [{ "host": ["broken.example.test"] }],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "health_checks": { "active": { "interval": 5000000000, "uri": "/" } },
+                          "upstreams": [{ "dial": "whoami1:80" }, { "dial": "whoami2:80" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [{ "host": ["app.example.test", "www.example.test"] }],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [{ "handle": [{ "body": "wild", "handler": "static_response" }] }]
+                }
+              ],
+              "match": [{ "host": ["*.wild.example.test"] }],
+              "terminal": true
+            }
+          ]
+        },
+        "srv1": {
+          "listen": [":80"],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        { "handler": "reverse_proxy", "upstreams": [{ "dial": "whoami1:80" }] }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [{ "host": ["plain.example.test"] }],
+              "terminal": true
+            }
+          ]
+        }
+      }
+    },
+    "tls": { "automation": { "policies": [{ "issuers": [{ "module": "internal" }] }] } }
+  }
+}

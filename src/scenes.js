@@ -1,41 +1,105 @@
 // -----------------------------------------------------------------------------
-// Scene actions (SDK v0.14+, Gladys 5.1+).
+// Scene action handlers (manifest `scene_actions`, Gladys 5.1+).
 //
-// A scene action is an OPERATION a scene author places in a scene, with
-// parameters and a result: "identify this device", "take a snapshot", "clean
-// these rooms". Each one is declared in the manifest `scene_actions` field
-// (key, label, `fields` in the config_schema grammar, scalar `outputs`) and
-// handled here, keyed by that same `key`; index.js registers every entry with
-// `gladys.onSceneAction(key, ...)`.
-//
-// Scene TRIGGERS are the other direction ("this happened"): they are fired by
-// the device that observes the event, see src/devices/motionSensor.js.
-//
-// The rules that matter:
-//   - `fields` arrive RESOLVED: scene variables substituted, defaults applied,
-//     validated by the core; a `"source": "devices"` field is the chosen
-//     device external_id;
-//   - resolve an object of the declared `outputs` (scalars only), readable by
-//     the following actions of the scene, or `undefined` for none. Keys not
-//     declared in the manifest are dropped by the core;
-//   - throwing fails THIS action only: the scene logs it and continues. A
-//     scene action is never a condition: return an output and let the scene
-//     author gate on it;
-//   - never fire a scene event as a consequence of a received action: a scene
-//     bound to that event would loop through the integration.
+// "Does this site have a healthy upstream?" is already a scene condition on
+// the device feature. The actions are about what a condition cannot do: put
+// the state in a message ("cloud.example.com: Degraded, 1/2 upstream(s)
+// healthy, certificate valid 63 more day(s)."), and sum up the whole server —
+// upstreams down and certificates expiring, added to Gladys or not, or that
+// Caddy does not answer. Both read Caddy again when the last read is older
+// than 15 seconds. Nothing is ever written to Caddy.
 // -----------------------------------------------------------------------------
 
-import { createLogger } from '@gladysassistant/integration-sdk';
-import { signalDevice } from './devices/index.js';
+import { daysLeft, readable } from './caddy/certificates.js';
+import { upstreamCounts } from './devices.js';
+import { ACTION_TEXT, REPORT_TEXT, SENTENCE_TEXT, STATE_TEXT, labelled, pick } from './texts.js';
 
-const logger = createLogger({ name: 'scenes' });
+// Names listed in the text outputs, at most (the rest is counted).
+export const MAX_LISTED_NAMES = 20;
+
+const listed = (names) => {
+  const shown = names.slice(0, MAX_LISTED_NAMES);
+  return names.length > shown.length
+    ? `${shown.join(', ')}, +${names.length - shown.length}`
+    : shown.join(', ');
+};
+
+const sortedNames = (items, key) =>
+  items.map((item) => item[key]).sort((a, b) => a.localeCompare(b));
 
 export const SCENE_ACTIONS = {
-  // The ack is awaited under the action's `timeout_seconds` (15 s in the
-  // manifest), counted from the moment the scene reaches the action.
-  async identify_device(gladys, { fields, config }) {
-    logger.info(`Scene action identify_device <- ${fields.device}`);
-    const signalled = await signalDevice(gladys, fields.device, config);
-    return { signalled };
+  async get_site_status(hub, { fields = {} }) {
+    if (!hub.client) {
+      hub.assertReadable(); // no address: the configuration to fix
+    }
+    await hub.refreshIfStale();
+    hub.assertReadable();
+    const language = hub.config.language;
+    const site = hub.find(fields.device);
+    if (!site) {
+      throw new Error(pick(ACTION_TEXT.unknownSite, language));
+    }
+    const status = hub.stateOf(site);
+    const state = pick(STATE_TEXT[status], language);
+    const words = SENTENCE_TEXT[language] ?? SENTENCE_TEXT.en;
+    const { healthy, total } = site.present
+      ? upstreamCounts(site, hub.upstreams)
+      : { healthy: 0, total: 0 };
+    const certificate = hub.certificates.get(site.name);
+    const days = readable(site) && certificate?.notAfter ? daysLeft(certificate, hub.now()) : null;
+    const parts = [labelled(site.name, state, language)];
+    if (total > 0) {
+      parts.push(words.upstreams(healthy, total));
+    }
+    if (days !== null) {
+      parts.push(words.days(days));
+    }
+    return {
+      healthy: !['down', 'missing'].includes(status),
+      state,
+      upstreams_healthy: healthy,
+      upstreams_total: total,
+      certificate_days: days ?? 0,
+      sentence: `${parts.join(', ')}.`,
+    };
+  },
+
+  async get_caddy_status(hub) {
+    if (!hub.client) {
+      hub.assertReadable(); // no address: the configuration to fix
+    }
+    await hub.refreshIfStale();
+    const language = hub.config.language;
+    const text = REPORT_TEXT[language] ?? REPORT_TEXT.en;
+    if (hub.error || !hub.reachable) {
+      // "Caddy does not answer" is an answer: the scene goes on with it.
+      return {
+        reachable: false,
+        sites: 0,
+        upstreams_down: 0,
+        upstreams: '',
+        certificates_expiring: 0,
+        certificates: '',
+        sentence: `${labelled('Caddy', text.unreachable, language)}.`,
+      };
+    }
+    const down = sortedNames(hub.upstreamsDown(), 'address');
+    const expiring = sortedNames(hub.expiringSites(), 'name');
+    const parts = [];
+    if (down.length > 0) {
+      parts.push(`${text.down(down.length)} (${listed(down)})`);
+    }
+    if (expiring.length > 0) {
+      parts.push(`${text.expiring(expiring.length)} (${listed(expiring)})`);
+    }
+    return {
+      reachable: true,
+      sites: [...hub.sites.values()].filter((site) => site.present).length,
+      upstreams_down: down.length,
+      upstreams: listed(down),
+      certificates_expiring: expiring.length,
+      certificates: listed(expiring),
+      sentence: `${labelled('Caddy', parts.length > 0 ? parts.join(', ') : text.healthy, language)}.`,
+    };
   },
 };
