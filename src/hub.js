@@ -64,7 +64,7 @@ export const FAILURES_BEFORE_UNREACHABLE = 2;
 export const CONFIRM_READS = 2;
 
 // Certificates read at once.
-const CERTIFICATE_CONCURRENCY = 4;
+const CERTIFICATE_CONCURRENCY = 8;
 const MAX_TRANSPORTS_PER_REQUEST = 100;
 const MAX_EVENT_TEXT = 1000;
 
@@ -190,7 +190,9 @@ export class CaddyHub {
     }
     try {
       if (this.client) {
-        await this.pollNow({ publish: true });
+        // The handshakes may take a while (a firewall dropping port 443): the
+        // handlers waiting for the start must not wait for them.
+        await this.pollNow({ publish: true, certificates: 'background' });
       } else {
         await this.afterChanges(true, { publish: true });
       }
@@ -224,19 +226,30 @@ export class CaddyHub {
   // --- Reading Caddy -----------------------------------------------------------
 
   /**
-   * Read Caddy now (and the certificates due, or all with `certificates`),
-   * then publish what changed.
+   * Read Caddy now, then publish what changed. The certificates due are read
+   * too: awaited (`false`), all of them (`true`), or after the publication,
+   * without waiting for them (`'background'`).
    */
   async pollNow({ publish = false, certificates = false } = {}) {
     let changed = await this.poll();
-    changed = (await this.readCertificates({ force: certificates })) || changed;
+    if (certificates !== 'background') {
+      changed = (await this.readCertificates({ force: certificates })) || changed;
+    }
     await this.afterChanges(changed, { publish });
+    if (certificates === 'background') {
+      this.background = this.readCertificates()
+        .then((read) => this.afterChanges(read))
+        .catch((err) => this.problems.fail('certificates', `Certificates: ${err.message}`));
+    }
   }
 
-  /** Read again when the last read is older than `freshMs` (scene actions). */
+  /**
+   * Read again when the last read is older than `freshMs` (scene actions,
+   * within their timeout: the certificates are not waited for).
+   */
   async refreshIfStale() {
     if (this.client && this.now() - this.readAt >= this.timings.freshMs) {
-      await this.pollNow();
+      await this.pollNow({ certificates: 'background' });
     }
   }
 
@@ -384,9 +397,14 @@ export class CaddyHub {
       const { address } = upstream;
       this.pending.delete(`upstream-gone:${address}`);
       const previous = saved.upstreams[address];
-      const healthy = previous
-        ? this.settle(`upstream:${address}`, upstream.healthy, previous.healthy)
-        : upstream.healthy;
+      // Unknown health (the metrics did not answer this time): unchanged. On
+      // the very first read the health is taken as is (nothing is announced);
+      // after it, a new upstream is healthy until two reads say otherwise.
+      const known = previous?.healthy ?? (initialized ? true : (upstream.healthy ?? true));
+      const healthy =
+        upstream.healthy === null
+          ? known
+          : this.settle(`upstream:${address}`, upstream.healthy, known);
       const view = { ...upstream, healthy, sites: sitesOf(address) };
       nextUpstreams.set(address, view);
       if (previous?.healthy === healthy) {
@@ -560,9 +578,8 @@ export class CaddyHub {
     const events = [];
     for (const [name, announced] of Object.entries(saved.certificates)) {
       const certificate = this.certificates.get(name);
-      const site = this.sites.get(name);
       // Renewed (another expiry date), or the site gone: armed again.
-      if (!site || (certificate?.notAfter && certificate.notAfter !== announced)) {
+      if (!saved.sites[name] || (certificate?.notAfter && certificate.notAfter !== announced)) {
         delete saved.certificates[name];
         dirty = true;
       }

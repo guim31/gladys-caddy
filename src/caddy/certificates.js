@@ -32,9 +32,9 @@ export function readable(site) {
 /**
  * The one function that opens a TLS connection. The hub takes it as a
  * parameter: the tests replace it with in-memory certificates.
- * @returns {Promise<{ notBefore: number, notAfter: number, issuer: string }>}
+ * @returns {Promise<{ notBefore: number|null, notAfter: number, issuer: string }>}
  */
-export function probeCertificate({ host, port, servername, timeoutMs = 10_000 }) {
+export function probeCertificate({ host, port, servername, timeoutMs = 5_000 }) {
   return new Promise((resolve, reject) => {
     const socket = tls.connect({
       host,
@@ -57,7 +57,7 @@ export function probeCertificate({ host, port, servername, timeoutMs = 10_000 })
         return;
       }
       resolve({
-        notBefore: Number.isFinite(notBefore) ? notBefore : notAfter,
+        notBefore: Number.isFinite(notBefore) ? notBefore : null,
         notAfter,
         issuer: String(certificate.issuer?.CN ?? certificate.issuer?.O ?? '').slice(0, 100),
       });
@@ -84,6 +84,9 @@ export const LATE_RENEWAL_RATIO = 0.2;
  */
 export function isExpiring(certificate, now, days) {
   const left = certificate.notAfter - now;
+  if (!Number.isFinite(certificate.notBefore)) {
+    return left < days * DAY_MS; // lifetime unknown: the threshold alone
+  }
   const lifetime = Math.max(0, certificate.notAfter - certificate.notBefore);
   return left < days * DAY_MS && left < lifetime * LATE_RENEWAL_RATIO;
 }

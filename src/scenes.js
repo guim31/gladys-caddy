@@ -33,7 +33,9 @@ export const SCENE_ACTIONS = {
       hub.assertReadable(); // no address: the configuration to fix
     }
     await hub.refreshIfStale();
-    hub.assertReadable();
+    if (!hub.reachable) {
+      hub.assertReadable(); // one failed read is tolerated, as for the device
+    }
     const language = hub.config.language;
     const site = hub.find(fields.device);
     if (!site) {

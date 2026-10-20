@@ -78,6 +78,26 @@ test('sites without host, nested subroutes, placeholders, explicit TLS and ports
   assert.equal(portOf('unix//run/caddy.sock'), null);
 });
 
+test('plain HTTP hosts on a TLS port, and the fallback route of a server with sites', () => {
+  const sites = sitesOf({
+    apps: {
+      http: {
+        servers: {
+          srv0: {
+            listen: [':8080'],
+            automatic_https: { skip: ['app.lan'] },
+            routes: [
+              { match: [{ host: ['app.lan'] }], handle: [{ handler: 'static_response' }] },
+              { handle: [{ handler: 'static_response', status_code: 404 }] },
+            ],
+          },
+        },
+      },
+    },
+  });
+  assert.deepEqual(sites, [{ name: 'app.lan', https: false, port: null, upstreams: [] }]);
+});
+
 test('the metrics: health of each upstream and the last configuration load', () => {
   const { healthy, reloadOk } = parseMetrics(FIXTURES.metrics);
   assert.deepEqual(Object.fromEntries(healthy), {
@@ -199,5 +219,6 @@ test('a certificate is expiring under the threshold, and only when its renewal i
     isExpiring({ notBefore: NOW - 11 * 3600_000, notAfter: NOW + 1800_000 }, NOW, 14),
     true,
   );
+  assert.equal(isExpiring({ notBefore: null, notAfter: NOW + DAY_MS }, NOW, 14), true);
   assert.equal(DAY_MS, 86_400_000);
 });

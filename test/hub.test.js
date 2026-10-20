@@ -136,6 +136,8 @@ test('a new upstream that appears down is announced, a removed one is forgotten'
   });
   world.caddy.setHealthy('new:80', false);
   await world.hub.pollNow();
+  assert.equal(events(world, TRIGGERS.UPSTREAM_DOWN).length, 0, 'confirmed on two reads');
+  await world.hub.pollNow();
   assert.deepEqual(
     events(world, TRIGGERS.UPSTREAM_DOWN).map((e) => e.data.upstream),
     ['new:80'],
@@ -145,6 +147,16 @@ test('a new upstream that appears down is announced, a removed one is forgotten'
   await confirm(world);
   assert.equal(world.hub.saved.upstreams['new:80'], undefined);
   assert.equal(world.hub.upstreams.has('new:80'), false);
+});
+
+test('metrics missing for a while: the health is unknown, not healthy', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  world.caddy.metricsAvailable = false;
+  await confirm(world);
+  await world.hub.pollNow();
+  assert.equal(world.hub.upstreams.get('dead:80').healthy, false, 'still down');
+  assert.deepEqual(world.fake.sceneEvents, []);
 });
 
 test('a site removed from the configuration: missing if added to Gladys, gone otherwise', async (t) => {

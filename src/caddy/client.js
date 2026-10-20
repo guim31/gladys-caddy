@@ -186,15 +186,29 @@ export function sitesOf(config) {
       continue;
     }
     const https = servesTls(server, httpPort);
+    // Hosts served in plain HTTP on a TLS port (`http://app.lan:8080`).
+    const skip = new Set(
+      list(server.automatic_https?.skip)
+        .filter((host) => typeof host === 'string')
+        .map((host) => host.toLowerCase()),
+    );
     const port = https ? tlsPortOf(server, httpPort) : null;
-    // A route without host matcher answers any host on this listen address.
-    const anyHost = list(server.listen)
-      .filter((listen) => typeof listen === 'string')
-      .join(' ');
+    // A route without host matcher answers any host on this listen address:
+    // a site of its own (`:8080 { … }`), unless the server has sites with a
+    // host, where it is only the fallback (a 404 after the sites).
+    const withHosts = list(server.routes).some((route) =>
+      list(route?.match).some((matcher) => list(matcher?.host).length > 0),
+    );
+    const anyHost = withHosts
+      ? ''
+      : list(server.listen)
+          .filter((listen) => typeof listen === 'string')
+          .join(' ');
     walkRoutes(server.routes, anyHost ? [anyHost] : [], (name, dials) => {
       let site = sites.get(name);
       if (!site) {
-        site = { name, https, port, upstreams: [] };
+        const tls = https && !skip.has(name);
+        site = { name, https: tls, port: tls ? port : null, upstreams: [] };
         sites.set(name, site);
       }
       for (const dial of dials) {
@@ -282,6 +296,9 @@ export class CaddyClient {
       });
     } catch (err) {
       const code = err.cause?.code ?? err.code;
+      if (err.message === 'Response too large') {
+        throw new CaddyError(ERROR_KINDS.HTTP, 'Response too large');
+      }
       if (TLS_CODES.has(code)) {
         throw new CaddyError(ERROR_KINDS.TLS, `Certificate refused (${code})`);
       }
@@ -347,6 +364,10 @@ export class CaddyClient {
           ])
         : [null, await this.optional('/metrics', (path) => this.fetchText(path))];
     const { healthy, reloadOk } = parseMetrics(metrics);
+    // Without metrics this time, after they once answered: the health is
+    // unknown, not "fails === 0" (0 for an upstream down by active checks).
+    const unknown = metrics === null && this.metricsSeen;
+    this.metricsSeen ||= metrics !== null;
     const known = new Map(normalizeUpstreams(raw).map((entry) => [entry.address, entry]));
     const upstreams = dials.map((address) => {
       const entry = known.get(address) ?? { requests: 0, fails: 0 };
@@ -354,7 +375,7 @@ export class CaddyClient {
         address,
         requests: entry.requests,
         fails: entry.fails,
-        healthy: healthy.get(address) ?? entry.fails === 0,
+        healthy: healthy.get(address) ?? (unknown ? null : entry.fails === 0),
       };
     });
     return { sites, upstreams, reloadOk };

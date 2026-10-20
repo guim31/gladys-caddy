@@ -51,6 +51,7 @@ export async function createWorld({
   if (connect) {
     await gladys.connect();
     await app.ready;
+    await app.hub.background; // the certificates read after the start
   }
   return { gladys, fake: gladys.fake, caddy, app, hub: app.hub, clock, dataDir };
 }
