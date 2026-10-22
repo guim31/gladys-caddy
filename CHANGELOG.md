@@ -10,6 +10,14 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-22
+
+### Security
+
+- Rebuilt on Node.js 24.22.1, the October 2026 security release (remote code
+  execution in the Brotli decoder, CVE-2026-111497; TLS hostname and DNS
+  fixes).
+
 ## [1.0.0] - 2026-10-20
 
 ### Added
@@ -30,5 +38,6 @@ the notes of the version's GitHub Release.
   connection" action.
 - Texts and documentation in English, French, German and Spanish.
 
-[Unreleased]: https://github.com/guim31/gladys-caddy/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/guim31/gladys-caddy/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/guim31/gladys-caddy/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/guim31/gladys-caddy/releases/tag/v1.0.0
