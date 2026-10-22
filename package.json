@@ -1,6 +1,6 @@
 {
   "name": "gladys-caddy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Gladys Assistant integration for the Caddy web server: sites, upstream health, certificates, scene triggers and a dashboard widget.",
   "type": "module",
